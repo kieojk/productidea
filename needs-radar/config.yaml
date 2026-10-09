@@ -66,7 +66,7 @@ hackernews_types: [front_page, ask_hn]
 # ---- v0.2：竞品核查（Serper.dev 或 SerpAPI；两个 key 都没配则自动跳过）----
 competitor_check:
   queries_per_card: 2         # 每张卡最多搜几个词
-  max_searches_per_day: 40    # Serper 送 2500 次，40/天约可跑 2 个月；若退回 SerpAPI 免费档(100次/月)调成 3
+  max_searches_per_day: 3    # Serper 送 2500 次，40/天约可跑 2 个月；若退回 SerpAPI 免费档(100次/月)调成 3
 
 # ---- 粗筛阈值 ----
 filters:
