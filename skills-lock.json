@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "skills": {
+    "domain-hunter": {
+      "source": "git@github.com:ReScienceLab/opc-skills.git",
+      "sourceUrl": "git@github.com:ReScienceLab/opc-skills.git",
+      "sourceType": "git",
+      "skillPath": "skills/domain-hunter/SKILL.md",
+      "computedHash": "534f4202e34bd59e98bc736bec608605bbc2c1f00fae9d46a7548713b03781aa"
+    },
+    "reddit": {
+      "source": "git@github.com:ReScienceLab/opc-skills.git",
+      "sourceUrl": "git@github.com:ReScienceLab/opc-skills.git",
+      "sourceType": "git",
+      "skillPath": "skills/reddit/SKILL.md",
+      "computedHash": "cb78c8355aba2e3334289c99e7ed06fb2d38a1defb17a649f5082611939a162d"
+    },
+    "twitter": {
+      "source": "git@github.com:ReScienceLab/opc-skills.git",
+      "sourceUrl": "git@github.com:ReScienceLab/opc-skills.git",
+      "sourceType": "git",
+      "skillPath": "skills/twitter/SKILL.md",
+      "computedHash": "edaa1a556aef9952026507a7f4889e7cd03b04db60add6c1997c505b75a6ef12"
+    }
+  }
+}
