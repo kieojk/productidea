@@ -34,6 +34,6 @@ curl -s -m 10 -A "web:needs-radar:v0.1 (personal research aggregator)" \
 HTTP 200, 8775 bytes
 
 
-如何运行
+## 如何运行
 cd needs-radar/
 set -a && source ./.env && set +a && .venv/bin/python run_local.py --dry-run
