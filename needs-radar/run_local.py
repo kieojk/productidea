@@ -6,7 +6,8 @@
   anthropic：中转站/厂商提供 Anthropic 兼容接口（/v1/messages），只换 URL/key/模型名
   openai   ：中转站只提供 OpenAI 兼容接口（/v1/chat/completions），本文件内适配
 
-搜索适配优先级（.env 按配置了哪个 key 决定）：GEMINI_API_KEY > TAVILY_API_KEY > 上游 Serper/SerpAPI
+搜索源切换（.env 的 SEARCH_PROVIDER 显式指定 serper|serpapi|tavily|gemini）：
+  不填则按已配 key 自动降级：GEMINI_API_KEY > TAVILY_API_KEY > 上游 Serper/SerpAPI
   gemini   ：Gemini google_search grounding（需第三方透传 tools 字段，官方 API/官方反代可用）
   tavily   ：Tavily Search API
 """
@@ -163,16 +164,29 @@ def web_search_gemini(query, tbs=None):
              "snippet": (" ".join(segs[i]) or w.get("title", ""))[:300]}
             for i, w in enumerate(chunks)]
 
-if os.environ.get("GEMINI_API_KEY"):
+# ---- 搜索源一键切换：SEARCH_PROVIDER 显式指定 serper|serpapi|tavily|gemini；----
+# 不填则按已配 key 自动降级（gemini > tavily > serper/serpapi，serper/serpapi 走 radar.py 原生逻辑）
+_provider = os.environ.get("SEARCH_PROVIDER", "").strip().lower()
+if _provider and _provider not in ("serper", "serpapi", "tavily", "gemini"):
+    print(f"[warn] SEARCH_PROVIDER={_provider!r} 无效（可选 serper/serpapi/tavily/gemini），改按已配 key 自动选择",
+          file=sys.stderr)
+    _provider = ""
+if _provider == "gemini" or (not _provider and os.environ.get("GEMINI_API_KEY")):
     radar.web_search = web_search_gemini
     # 同 Tavily 的处理：radar.py 两处以 SERPER/SERPAPI key 当功能开关，塞占位值打开；
     # 真实搜索已整体替换为上面的 Gemini 实现，不会真的调 Serper/SerpAPI
     if not (os.environ.get("SERPER_API_KEY") or os.environ.get("SERPAPI_API_KEY")):
         os.environ["SERPAPI_API_KEY"] = "gemini-placeholder"
-elif os.environ.get("TAVILY_API_KEY"):
+elif _provider == "tavily" or (not _provider and os.environ.get("TAVILY_API_KEY")):
     radar.web_search = web_search_tavily
     if not (os.environ.get("SERPER_API_KEY") or os.environ.get("SERPAPI_API_KEY")):
         os.environ["SERPAPI_API_KEY"] = "tavily-placeholder"
+elif _provider == "serpapi":
+    # radar.py 原生逻辑固定 Serper 优先，显式选 serpapi 时屏蔽 SERPER key 强制走 SerpAPI
+    os.environ.pop("SERPER_API_KEY", None)
+    if not os.environ.get("SERPAPI_API_KEY"):
+        print("[warn] SEARCH_PROVIDER=serpapi 但未配 SERPAPI_API_KEY，竞品核查会跳过", file=sys.stderr)
+# serper：radar.py 原生即 Serper 优先，无需处理
 
 # ---- 修复上游 upcoming_events 的排序 bug ----
 # 原版 radar.py hits.sort() 对 (days, dict) 元组排序，两个事件距今天数相同时
