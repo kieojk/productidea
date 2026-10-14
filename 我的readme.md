@@ -60,3 +60,16 @@ User asks: where in run_local.py do the two uses map? Answer: both uses call rad
 ## 如何运行
 cd needs-radar/
 set -a && source ./.env && set +a && .venv/bin/python run_local.py --dry-run
+
+
+后台那个网络冒烟测试已确认停掉了（本来也不需要它，真实连通性你自己测即可）。代码层面的工作此前已全部完成：`run_local.py` 里 Gemini google_search 接口已就位，优先级 Gemini > Tavily，上游 `radar.py` 未动，配套的 `gemini_search_test.py`、`.env` 注释说明和 `config_local.yaml` 注释也都已更新。
+
+等你在 `.env` 里填上 `GEMINI_API_KEY`（需要 Bearer 鉴权的话再设 `GEMINI_AUTH=bearer`，反代就设 `GEMINI_BASE_URL`），然后运行：
+
+```bash
+cd needs-radar
+set -a && source ./.env && set +a
+.venv/bin/python gemini_search_test.py "habit tracker app"
+```
+
+测试中有任何问题（比如第三方不透传 `tools` 导致返回空列表并打 warn）随时反馈。

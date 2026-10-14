@@ -5,6 +5,10 @@
 .env 两种协议二选一（LLM_PROTOCOL 默认 anthropic）：
   anthropic：中转站/厂商提供 Anthropic 兼容接口（/v1/messages），只换 URL/key/模型名
   openai   ：中转站只提供 OpenAI 兼容接口（/v1/chat/completions），本文件内适配
+
+搜索适配优先级（.env 按配置了哪个 key 决定）：GEMINI_API_KEY > TAVILY_API_KEY > 上游 Serper/SerpAPI
+  gemini   ：Gemini google_search grounding（需第三方透传 tools 字段，官方 API/官方反代可用）
+  tavily   ：Tavily Search API
 """
 import json
 import os
@@ -108,11 +112,65 @@ def web_search_tavily(query, tbs=None):
              "snippet": (w.get("content", "") or "")[:300]}  # 截断摘要，控制评委轮 token 消耗
             for w in r.json().get("results", [])]
 
-if os.environ.get("TAVILY_API_KEY"):
+# ---- Gemini google_search 搜索适配（可选，优先级高于 Tavily）----
+# .env 配了 GEMINI_API_KEY 则用 Gemini google_search grounding 替代 Tavily。
+# 原理见 gemini-google-search.md：请求体带 tools: [{"google_search": {}}]，从响应的
+# groundingMetadata 里取来源。要求第三方透传 tools 字段（官方 API/官方反代）；
+# OpenAI 网关式中转不透传时会拿不到 groundingMetadata，返回空列表（等同该词没搜到）。
+GEMINI_BASE_URL = os.environ.get(
+    "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com").rstrip("/")
+GEMINI_SEARCH_MODEL = os.environ.get("GEMINI_SEARCH_MODEL", "gemini-2.5-flash")
+_GEMINI_TBS_HINT = {"qdr:d": "过去24小时内", "qdr:w": "过去一周内",
+                    "qdr:m": "过去一个月内", "qdr:y": "过去一年内"}
+
+def web_search_gemini(query, tbs=None):
+    """Gemini google_search 版 web_search：入参/返回值与原函数一致（[{title,url,snippet}]）。
+    与 Tavily 不同，site:/tbs 没有对应 API 参数，只能写进提示词让模型检索时带上
+    （site: 通常能透传到模型生成的搜索词，但不如 Tavily 的 include_domains 严格）。
+    snippet 取 groundingSupports 里挂在各来源上的回答文本片段，拿不到则退回页面标题。"""
+    text = query
+    if tbs in _GEMINI_TBS_HINT:
+        text += f"\n（只检索发布于{_GEMINI_TBS_HINT[tbs]}的网页）"
+    payload = {
+        "contents": [{"parts": [{"text": text + "\n（请用 google_search 工具实际检索网页，不要凭记忆回答）"}]}],
+        "tools": [{"google_search": {}}],
+    }
+    headers = {"Content-Type": "application/json"}
+    if os.environ.get("GEMINI_AUTH", "").lower() == "bearer":
+        headers["Authorization"] = f"Bearer {os.environ['GEMINI_API_KEY']}"
+    else:  # 官方及多数官方反代用 x-goog-api-key；换协议改 GEMINI_AUTH=bearer
+        headers["x-goog-api-key"] = os.environ["GEMINI_API_KEY"]
+    r = requests.post(
+        f"{GEMINI_BASE_URL}/v1beta/models/{GEMINI_SEARCH_MODEL}:generateContent",
+        headers=headers, json=payload, timeout=60,
+    )
+    r.raise_for_status()
+    cand = (r.json().get("candidates") or [{}])[0]
+    meta = cand.get("groundingMetadata") or {}
+    chunks = [c["web"] for c in meta.get("groundingChunks", []) if "web" in c]
+    if not chunks:  # 模型没触发搜索/第三方没透传 tools → 无来源可返回
+        print(f"[warn] gemini search 无 groundingMetadata: {query!r}", file=sys.stderr)
+        return []
+    segs = [set() for _ in chunks]  # 每个来源对应的回答文本片段，去重后拼接当摘要
+    for sup in meta.get("groundingSupports", []):
+        seg = ((sup.get("segment") or {}).get("text") or "").strip()
+        if not seg:
+            continue
+        for i in sup.get("groundingChunkIndices", []):
+            if isinstance(i, int) and 0 <= i < len(chunks):
+                segs[i].add(seg)
+    return [{"title": w.get("title", ""), "url": w.get("uri", ""),
+             "snippet": (" ".join(segs[i]) or w.get("title", ""))[:300]}
+            for i, w in enumerate(chunks)]
+
+if os.environ.get("GEMINI_API_KEY"):
+    radar.web_search = web_search_gemini
+    # 同 Tavily 的处理：radar.py 两处以 SERPER/SERPAPI key 当功能开关，塞占位值打开；
+    # 真实搜索已整体替换为上面的 Gemini 实现，不会真的调 Serper/SerpAPI
+    if not (os.environ.get("SERPER_API_KEY") or os.environ.get("SERPAPI_API_KEY")):
+        os.environ["SERPAPI_API_KEY"] = "gemini-placeholder"
+elif os.environ.get("TAVILY_API_KEY"):
     radar.web_search = web_search_tavily
-    # 原代码两处用「有没有 SERPER/SERPAPI key」当功能开关（radar.py:185、431），
-    # 只配 Tavily 时塞个占位值把开关打开；真实搜索全部走上面的 Tavily 实现，
-    # 不会碰 SerpAPI（原 web_search 已被整体替换）
     if not (os.environ.get("SERPER_API_KEY") or os.environ.get("SERPAPI_API_KEY")):
         os.environ["SERPAPI_API_KEY"] = "tavily-placeholder"
 

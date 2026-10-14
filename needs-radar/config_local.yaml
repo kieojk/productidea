@@ -63,10 +63,10 @@ search_queries:
 google_trends_geo: US
 hackernews_types: [front_page, ask_hn]
 
-# ---- v0.2：竞品核查（Serper.dev / SerpAPI / Tavily；一个都没配则自动跳过）----
+# ---- v0.2：竞品核查（搜索实现优先级：Gemini google_search > Tavily > Serper.dev / SerpAPI；都没配则自动跳过）----
 competitor_check:
   queries_per_card: 2         # 每张卡最多搜几个词
-  max_searches_per_day: 25    # Tavily 免费 1000 次/月（25+句式搜索5 ≈ 30/天，月约900次留余量）；Serper 送 2500 次可调 40；SerpAPI 免费档(100次/月)调 3
+  max_searches_per_day: 25    # Tavily 免费 1000 次/月（25+句式搜索5 ≈ 30/天，月约900次留余量）；Serper 送 2500 次可调 40；SerpAPI 免费档(100次/月)调 3；Gemini grounding 2026 年起按搜索次数计费（每月共享 5000 次免费），可适当调高
 
 # ---- 粗筛阈值 ----
 filters:
